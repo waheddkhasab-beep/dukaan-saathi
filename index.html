@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<title>DukaanSaathi V1</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7f7;color:#17202a}
+header{background:#0f766e;color:#fff;padding:18px 16px;position:sticky;top:0;z-index:2}
+h1{margin:0;font-size:24px} .sub{opacity:.9;font-size:13px;margin-top:4px}
+nav{display:flex;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:70px;z-index:2}
+nav button{flex:1;padding:13px 4px;border:0;background:#fff;font-weight:700;color:#555}
+nav button.active{color:#0f766e;border-bottom:3px solid #0f766e}
+main{padding:15px;max-width:700px;margin:auto}.page{display:none}.page.active{display:block}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:#fff;padding:15px;border-radius:14px;box-shadow:0 2px 8px #00000012}
+.label{font-size:12px;color:#667085}.value{font-size:22px;font-weight:800;margin-top:5px}
+form,.panel{background:#fff;padding:15px;border-radius:14px;margin-bottom:15px;box-shadow:0 2px 8px #00000010}
+input,select{width:100%;padding:12px;border:1px solid #ccd3d8;border-radius:9px;margin:6px 0 12px;font-size:16px}
+button.primary{width:100%;padding:13px;border:0;border-radius:9px;background:#0f766e;color:#fff;font-weight:700;font-size:16px}
+.customer{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid #eee}
+.customer:last-child{border-bottom:0}.name{font-weight:700}.muted{font-size:12px;color:#667085}
+.debit{color:#b42318}.credit{color:#067647}.zero{color:#667085}
+.actions{display:flex;gap:8px}.actions button{flex:1;padding:10px;border:0;border-radius:8px;background:#e8f3f2;color:#0f766e;font-weight:700}
+.smallbtn{padding:8px 10px;border:0;border-radius:8px;background:#eef2f2}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
+th,td{padding:10px;text-align:left;border-bottom:1px solid #eee;font-size:13px}
+.empty{text-align:center;color:#667085;padding:25px}
+</style>
+</head>
+<body>
+<header><h1>🧾 DukaanSaathi</h1><div class="sub">Aapki dukaan ka simple digital khata</div></header>
+<nav>
+<button class="active" onclick="showPage('home',this)">🏠 Home</button>
+<button onclick="showPage('customers',this)">👥 Customers</button>
+<button onclick="showPage('entry',this)">➕ Entry</button>
+<button onclick="showPage('history',this)">📋 History</button>
+</nav>
+<main>
+<section id="home" class="page active">
+<div class="cards">
+<div class="card"><div class="label">Customers</div><div id="totalCustomers" class="value">0</div></div>
+<div class="card"><div class="label">Total Udhaar</div><div id="totalDue" class="value">₹0</div></div>
+</div>
+<div class="panel" style="margin-top:12px">
+<h3>Quick Entry</h3>
+<button class="primary" onclick="showPage('entry',document.querySelectorAll('nav button')[2])">+ Naya Transaction</button>
+</div>
+<div class="panel"><h3>Recent Transactions</h3><div id="recent"></div></div>
+</section>
+
+<section id="customers" class="page">
+<div class="panel"><h3>Naya Customer</h3>
+<form onsubmit="addCustomer(event)">
+<input id="custName" placeholder="Customer ka naam" required>
+<input id="custPhone" placeholder="Mobile number (optional)" inputmode="numeric">
+<button class="primary">Customer Save Karein</button>
+</form></div>
+<div class="panel"><input id="search" placeholder="🔍 Customer search..." oninput="renderCustomers()"><div id="customerList"></div></div>
+</section>
+
+<section id="entry" class="page">
+<div class="panel"><h3>Transaction Entry</h3>
+<form onsubmit="addTransaction(event)">
+<label>Customer</label><select id="txCustomer" required></select>
+<label>Amount</label><input id="txAmount" type="number" min="1" step="0.01" placeholder="₹ Amount" required>
+<label>Type</label><select id="txType"><option value="udhaar">Udhaar / Maal Diya (+)</option><option value="jama">Jama / Payment Mila (-)</option></select>
+<input id="txNote" placeholder="Note (optional)">
+<button class="primary">Transaction Save Karein</button>
+</form></div>
+</section>
+
+<section id="history" class="page">
+<div class="panel"><h3>Transaction History</h3><div id="historyList"></div></div>
+</section>
+</main>
+<script>
+const KEY='dukaanSaathiV1';
+let db=JSON.parse(localStorage.getItem(KEY)||'{"customers":[],"transactions":[]}');
+const money=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+function showPage(id,btn){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+ document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+ if(btn) btn.classList.add('active');
+ renderAll();
+}
+function addCustomer(e){
+ e.preventDefault();
+ const name=document.getElementById('custName').value.trim(), phone=document.getElementById('custPhone').value.trim();
+ db.customers.push({id:Date.now().toString(),name,phone});
+ save(); e.target.reset(); renderAll(); alert('Customer save ho gaya.');
+}
+function addTransaction(e){
+ e.preventDefault();
+ const customerId=document.getElementById('txCustomer').value;
+ const amount=Number(document.getElementById('txAmount').value);
+ const type=document.getElementById('txType').value;
+ const note=document.getElementById('txNote').value.trim();
+ if(!customerId||!amount) return;
+ db.transactions.unshift({id:Date.now().toString(),customerId,amount,type,note,date:new Date().toISOString()});
+ save(); e.target.reset(); renderAll(); alert('Transaction save ho gaya.');
+}
+function balance(c){
+ return db.transactions.filter(t=>t.customerId===c.id).reduce((s,t)=>s+(t.type==='udhaar'?t.amount:-t.amount),0);
+}
+function renderCustomers(){
+ const q=(document.getElementById('search')?.value||'').toLowerCase();
+ const list=db.customers.filter(c=>c.name.toLowerCase().includes(q)||(c.phone||'').includes(q));
+ const box=document.getElementById('customerList');
+ box.innerHTML=list.length?list.map(c=>{
+  const b=balance(c); return `<div class="customer"><div><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.phone||'No mobile')}</div></div><div><b class="${b>0?'debit':b<0?'credit':'zero'}">${money(b)}</b></div></div>`;
+ }).join(''):'<div class="empty">Abhi koi customer nahi hai.</div>';
+}
+function renderSelect(){
+ const s=document.getElementById('txCustomer');
+ s.innerHTML=db.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+ if(!db.customers.length) s.innerHTML='<option value="">Pehle customer add karein</option>';
+}
+function renderHistory(){
+ const box=document.getElementById('historyList');
+ box.innerHTML=db.transactions.length?'<table><tr><th>Date</th><th>Customer</th><th>Type</th><th>Amount</th></tr>'+
+ db.transactions.map(t=>{let c=db.customers.find(x=>x.id===t.customerId)||{name:'Deleted'};return `<tr><td>${new Date(t.date).toLocaleDateString('en-IN')}</td><td>${esc(c.name)}<br><span class="muted">${esc(t.note||'')}</span></td><td>${t.type==='udhaar'?'Udhaar':'Jama'}</td><td class="${t.type==='udhaar'?'debit':'credit'}">${t.type==='udhaar'?'+':'-'}${money(t.amount)}</td></tr>`}).join('')+'</table>':'<div class="empty">Abhi transactions nahi hain.</div>';
+}
+function renderHome(){
+ document.getElementById('totalCustomers').textContent=db.customers.length;
+ document.getElementById('totalDue').textContent=money(db.customers.reduce((s,c)=>s+Math.max(0,balance(c)),0));
+ const box=document.getElementById('recent');
+ box.innerHTML=db.transactions.slice(0,5).map(t=>{let c=db.customers.find(x=>x.id===t.customerId)||{name:'Unknown'};return `<div class="customer"><div><b>${esc(c.name)}</b><div class="muted">${new Date(t.date).toLocaleString('en-IN')}</div></div><b class="${t.type==='udhaar'?'debit':'credit'}">${t.type==='udhaar'?'+':'-'}${money(t.amount)}</b></div>`}).join('')||'<div class="empty">Welcome! Pehla customer add karein.</div>';
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function renderAll(){renderHome();renderCustomers();renderSelect();renderHistory();}
+renderAll();
+</script>
+</body>
+</html>
